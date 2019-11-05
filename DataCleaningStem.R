@@ -17,7 +17,7 @@ readFileClean <-  function(filepath,fraction,seed) {
     set.seed(seed)
     lines <- sample(lines,length(lines)*fraction)
     # Replace contrations with their multi-word form, e,g I'll -> I will
-    #lines <- replace_contraction(lines)
+    lines <- replace_contraction(lines)
     output <- tibble(line=1:length(lines),text=lines)
     output
 }
@@ -44,7 +44,7 @@ words <- corpus %>% unnest_tokens(word,text,token="words") %>%
     # Remove profanity words
     filter(!word %in% profanity) %>%
     # Stem the words
-    #mutate(word = wordStem(word)) %>%
+    mutate(word = wordStem(word)) %>%
     # Remove empty words
     filter(word != "")
 
@@ -113,8 +113,8 @@ bigrams <- bigrams %>% separate(bigram, c("word1","word2"),sep=" ") %>%
     filter(!word1 %in% profanity,
            !word2 %in% profanity) %>%
     # Stem the words
-    #mutate(word1 = wordStem(word1),
-    #       word2 = wordStem(word2)) %>%
+    mutate(word1 = wordStem(word1),
+           word2 = wordStem(word2)) %>%
     # Filter empty words
     filter(word1 != "",
            word2 != "") %>%
@@ -133,7 +133,7 @@ source_bigrams
 # There are many bigrams that only occur very rarely
 source_bigrams %>% ggplot(aes(tf,fill=source))+
     geom_histogram(show.legend=FALSE)+
-    xlim(NA,0.0001) +
+    xlim(NA,0.0005) +
     scale_y_log10() +
     facet_wrap(~source)
 
@@ -187,9 +187,9 @@ trigrams <- trigrams %>% separate(trigram, c("word1","word2","word3"),sep=" ") %
            !word2 %in% profanity,
            !word3 %in% profanity) %>%
     # Stem the words
-    #mutate(word1 = wordStem(word1),
-    #       word2 = wordStem(word2),
-    #       word3 = wordStem(word3)) %>%
+    mutate(word1 = wordStem(word1),
+           word2 = wordStem(word2),
+           word3 = wordStem(word3)) %>%
     # Filter empty words
     filter(word1 != "",
            word2 != "",
@@ -213,7 +213,7 @@ source_trigrams %>% ggplot(aes(tf,fill=source))+
     scale_y_log10() +
     facet_wrap(~source)
 
-# Visualize the top twenty trigrams for each source
+# Visualize the top ten trigrams for each source
 pd_trigrams <- source_trigrams %>% 
     group_by(source) %>% 
     top_n(20, tf) %>% 
@@ -224,16 +224,10 @@ pd_trigrams <- source_trigrams %>%
 pd_trigrams %>% ggplot(aes(x=-order, y=tf, fill = source)) +
     geom_col(show.legend = FALSE) +
     facet_wrap(~source, ncol=3,scales="free_y") +
-    labs(x = NULL, y = "term frequency", title="Top twenty trigrams") +
+    labs(x = NULL, y = "term frequency") +
     scale_x_continuous(
         breaks = -pd_trigrams$order,
         labels = pd_trigrams$trigram,
         expand = c(0,0)
     ) +
     coord_flip()
-
-
-stats <- corpus %>% group_by(source) %>% summarize(lines=max(line))
-stats2 <- corpus %>% unnest_tokens(word,text,token="words") %>%
-    count(source,word) %>% group_by(source) %>%
-    summarize(words=sum(n))

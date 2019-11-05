@@ -1,0 +1,330 @@
+---
+title: "Milestone Report 1"
+output:
+  html_document:
+    keep_md: yes
+  pdf_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r globaloptions, echo=FALSE}
+library(knitr)
+
+# Set global knitr options
+opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE)
+```
+
+## Summary
+
+The objective of this project is to develop a text prediction application. For this
+purpose three data files are made available to train the application.
+
+This report gives the current status of the project. In particular, the status
+of data reading, data cleaning and data exploration will be discussed.
+
+## Data input
+
+Three large data files containing blog, news and twitter data are available
+to train the text prediction application. Text mining was performed on these
+data sets to develop a feel for the data and to start developing ideas on how
+to build the text prediction application.
+
+For the text mining the infrastructure offered by 'tidytext' was used (an
+introduction can be found on this [website](https://www.tidytextmining.com/)). A
+nice feature of 'tidytext' is that it is very well integrated with the 'tidyverse'
+packages.
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(tidytext)
+library(textclean)
+library(SnowballC)
+
+# Read a file with profanity words
+profanity <- readLines("profanity.txt")
+profanity <- tibble(word=profanity)
+
+readFileClean <-  function(filepath,fraction,seed) {
+    # Open as "rb" to avoid ^Z problem
+    con = file(filepath, "rb")
+    lines <- readLines(con,encoding = "UTF-8")
+    close(con)
+    set.seed(seed)
+    lines <- sample(lines,length(lines)*fraction)
+    # Replace contrations with their multi-word form, e,g I'll -> I will
+    #lines <- replace_contraction(lines)
+    output <- tibble(line=1:length(lines),text=lines)
+    output
+}
+```
+
+To read the three data files a function 'readFileClean' was written that can read
+in the files and write a random fraction of the file into a 'tibble'. For this
+report we used 10% of the data sets.
+
+```{r cacheRead, cache=TRUE}
+# Read 10% of the blogs, news and twitter data
+blogs <- readFileClean("en_US/en_US.blogs.txt", fraction=0.1, seed=124)
+news <- readFileClean("en_US/en_US.news.txt", fraction=0.1, seed=124)
+twitter <- readFileClean("en_US/en_US.twitter.txt", fraction=0.1, seed=124)
+
+```
+The three data sets were combined into a 'corpus' for further cleaning and
+analysis.
+```{r corpus}
+corpus <- bind_rows(list(blogs=blogs,news=news,twitter=twitter),.id="source")
+```
+
+The content of the corpus is shown below. It contains the source, the line number and the line text.
+```{r, echo=FALSE}
+head(corpus,5)
+```
+In the table below the number of lines and words in the corpus is summarized
+for each source.
+```{r Stats, echo=FALSE, cache=TRUE}
+stats <- corpus %>% group_by(source) %>% summarize(lines=max(line))
+stats2 <- corpus %>% unnest_tokens(word,text,token="words") %>%
+    count(source,word) %>% group_by(source) %>%
+    summarize(words=sum(n))
+left_join(stats,stats2)
+```
+
+## Data extraction and cleaning
+
+### Tokenization
+
+For the text prediction application I intend to use unigram (single word), 
+bigram (two consecutive words) and trigram (three consecutive words)
+frequencies in the data sets. Therefore, some analysis of these frequencies are
+presented here.
+
+To obtain unigram, bigram and trigram data from the corpus the 'tidytext' function
+'unnest_tokens' is used. By default this function casts all text to lower case.
+
+### Cleaning
+
+After tokenization the following cleaning steps were taken
+
+* Removal of 'stop words' using the 'snowball' lexicon. This
+removes frequently occuring words like I, to, the, ....
+    
+* Removal of 'words' containing characters other than a-z, A-Z and ' (apostrophe).
+    
+* Removal of profanity words. For this process a list with profanities from Google was used.
+
+Stemming of the words is also a possibility and easy to implement, but this is
+to be investigated at a later stage.
+
+### Implementation
+
+Below the implementation and cleaning is demonstrated for unigrams. For bigrams
+and trigrams the process is very similar.
+
+```{r unigram, cache=TRUE}
+# Tokenize into unigrams using unnest_tokens, followed by cleaning
+words <- corpus %>% unnest_tokens(word,text,token="words") %>%
+    # Remove "snowball" stopwords
+    filter(!word %in% stop_words$word[stop_words$lexicon=="snowball"])  %>%
+    # Remove words with non letters
+    filter(!grepl("[^a-zA-Z']",word)) %>%
+    # Remove profanity words
+    filter(!word %in% profanity)
+```
+
+## Data analysis
+
+### Unigrams
+
+As a first step the term frequency for each unigram was calculated. The term freqency
+is the number of times an unigram occurs in a source divided by the total number of
+unigrams in the source. The higher the term frequency the more often an unigram is used.
+
+Below is a table with statistics for unigrams in the three data sets. In the table
+'source' is the source of the word, 'word' is the unigram, 'n' is the number of
+times an unigram occurs in the source, 'rank' is the ranking of the unigran in the
+source and 'tf' is the term frequency. The table is sorted on 'n'.
+
+```{r uniTF, echo=FALSE, cache=TRUE}
+source_words <-  words %>% count(source,word,sort=TRUE)
+total_words <- source_words %>% group_by(source) %>% 
+                summarize(total=sum(n))
+source_words <- left_join(source_words,total_words)
+source_words <- source_words %>% 
+    group_by(source) %>% 
+    mutate(rank = row_number(), tf = n/total)
+source_words
+```
+
+In the figure below unigram frequencies in the three data sets are
+shown.
+```{r uniPlot, echo=FALSE, fig.width=12}
+pd_words <-  source_words %>% 
+    group_by(source) %>% 
+    top_n(20, tf) %>% 
+    ungroup() %>%
+    arrange(source,desc(tf)) %>%
+    mutate(order=row_number())
+
+pd_words %>% ggplot(aes(x=-order, y=tf, fill = source)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~source, ncol=3,scales="free_y") +
+    labs(x = NULL, y = "term frequency") +
+    scale_x_continuous(
+        breaks = -pd_words$order,
+        labels = pd_words$word,
+        expand = c(0,0)
+    ) +
+    coord_flip()
+```
+
+### Bigrams and trigrams
+
+In a similar way to the unigrams, bigrams and trigrams can be obtained
+and analyzed. Below the bi- and trigram distributions are shown for the three
+data sets.
+
+```{r bi-triTF, echo=FALSE, cache=TRUE}
+# Tokenize into bigrams
+bigrams <- corpus %>% unnest_tokens(bigram,text,token="ngrams", n=2) %>%
+    filter(!is.na(bigram)) # 9926761 
+
+# First separate bigrams into two words, then filter out stopwords,
+# non letter words and profanities
+# then perform stemming
+# and then unite the separate words into bigrams
+bigrams <- bigrams %>% separate(bigram, c("word1","word2"),sep=" ") %>%
+    # Remove stopwords
+    filter(!word1 %in% stop_words$word[stop_words$lexicon=="snowball"],
+           !word2 %in% stop_words$word[stop_words$lexicon=="snowball"]) %>%
+    # Remove words with non letters
+    filter(!grepl("[^a-zA-Z']",word1),
+           !grepl("[^a-zA-Z']",word2)) %>%
+    # Remove profanity words
+    filter(!word1 %in% profanity,
+           !word2 %in% profanity) %>%
+    # Stem the words
+    #mutate(word1 = wordStem(word1),
+    #       word2 = wordStem(word2)) %>%
+    # Filter empty words
+    filter(word1 != "",
+           word2 != "") %>%
+    unite(bigram, word1, word2, sep=" ") # 2470965
+
+# Determine term frequency for each source
+source_bigrams <-  bigrams %>% count(source,bigram,sort=TRUE)
+total_bigrams <- source_bigrams %>% group_by(source) %>% 
+    summarize(total=sum(n))
+source_bigrams <- left_join(source_bigrams,total_bigrams)
+source_bigrams <- source_bigrams %>% 
+    group_by(source) %>% 
+    mutate(rank = row_number(), tf = n/total)
+
+# Tokenize into trigrams
+trigrams <- corpus %>% unnest_tokens(trigram,text,token="ngrams", n=3) %>%
+    filter(!is.na(trigram)) #9501283
+
+# First separate trigrams into three words, then filter out stopwords,
+# non letter words and profanities
+# then perform stemming
+# and then unite the separate words into trigrams
+trigrams <- trigrams %>% separate(trigram, c("word1","word2","word3"),sep=" ") %>%
+    # Remove stopwords
+    filter(!word1 %in% stop_words$word[stop_words$lexicon=="snowball"],
+           !word2 %in% stop_words$word[stop_words$lexicon=="snowball"],
+           !word3 %in% stop_words$word[stop_words$lexicon=="snowball"]) %>%
+    # Remove words with non letters
+    filter(!grepl("[^a-zA-Z']",word1),
+           !grepl("[^a-zA-Z']",word2),
+           !grepl("[^a-zA-Z']",word3)) %>%
+    # Remove profanity words
+    filter(!word1 %in% profanity,
+           !word2 %in% profanity,
+           !word3 %in% profanity) %>%
+    # Stem the words
+    #mutate(word1 = wordStem(word1),
+    #       word2 = wordStem(word2),
+    #       word3 = wordStem(word3)) %>%
+    # Filter empty words
+    filter(word1 != "",
+           word2 != "",
+           word3 != "") %>%
+    unite(trigram, word1, word2, word3, sep=" ") #1077987
+
+# Determine term frequency for each source
+source_trigrams <-  trigrams %>% count(source,trigram,sort=TRUE)
+total_trigrams <- source_trigrams %>% group_by(source) %>% 
+    summarize(total=sum(n))
+source_trigrams <- left_join(source_trigrams,total_trigrams)
+source_trigrams <- source_trigrams %>% 
+    group_by(source) %>% 
+    mutate(rank = row_number(), tf = n/total)
+```
+
+```{r biPlot, echo=FALSE, fig.width=12}
+# Visualize the top twenty bigramss for each source
+pd_bigrams <- source_bigrams %>% 
+    group_by(source) %>% 
+    top_n(20, tf) %>% 
+    ungroup() %>%
+    arrange(source,desc(tf)) %>%
+    mutate(order=row_number())
+
+pd_bigrams %>% ggplot(aes(x=-order, y=tf, fill = source)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~source, ncol=3,scales="free_y") +
+    labs(x = NULL, y = "term frequency") +
+    scale_x_continuous(
+        breaks = -pd_bigrams$order,
+        labels = pd_bigrams$bigram,
+        expand = c(0,0)
+    ) +
+    coord_flip()
+```
+
+```{r triPlot, echo=FALSE, fig.width=12}
+# Visualize the top twenty trigrams for each source
+pd_trigrams <- source_trigrams %>% 
+    group_by(source) %>% 
+    top_n(20, tf) %>% 
+    ungroup() %>%
+    arrange(source,desc(tf)) %>%
+    mutate(order=row_number())
+
+pd_trigrams %>% ggplot(aes(x=-order, y=tf, fill = source)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~source, ncol=3,scales="free_y") +
+    labs(x = NULL, y = "term frequency") +
+    scale_x_continuous(
+        breaks = -pd_trigrams$order,
+        labels = pd_trigrams$trigram,
+        expand = c(0,0)
+    ) +
+    coord_flip()
+
+```
+
+## Observations and thoughts
+
+Here are some observations and thoughts from text mining through the three 
+data sets:
+
+* The data sets contain many 'words' with non alphabetic characters. I assumed that for
+setting up the text predection these would be not useful, therefore I removed
+all words with non alphabetic characters from the cleaning data sets.
+
+* A very large fraction of the unigrams are meaningless words, like 'aaaaaaaarrrrrghhhhhhh'.
+Although there are many meaningless words, they all have a very low frequency. This means
+that they could be easily removed by deleting all unigrams which only
+occur once in the data set. This process would also remove rare, valid words, but
+this is likely something one could live with.
+
+* At the moment I am assuming that it is sufficient to go up to trigrams for
+text prediction. This is something that needs testing.
+
+* In this report I did not apply word stemming as part of the cleaning process.
+I need to investigate whether word stemming will be required. It will bring
+down the number on ngrams.
+
+
+
