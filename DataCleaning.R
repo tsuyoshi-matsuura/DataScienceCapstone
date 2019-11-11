@@ -237,3 +237,23 @@ stats <- corpus %>% group_by(source) %>% summarize(lines=max(line))
 stats2 <- corpus %>% unnest_tokens(word,text,token="words") %>%
     count(source,word) %>% group_by(source) %>%
     summarize(words=sum(n))
+
+
+
+wordsT <- corpus %>% unnest_tokens(word,text,token="words") %>%
+    # Remove words with non letters
+    filter(!grepl("[^a-zA-Z']",word))
+
+source_wordsT <-  wordsT %>% count(source,word,sort=TRUE)
+total_wordsT <- source_wordsT %>% group_by(source) %>% 
+    summarize(total=sum(n))
+source_wordsT <- left_join(source_wordsT,total_wordsT)
+source_wordsT <- source_wordsT %>% 
+    group_by(source) %>% 
+    mutate(rank = row_number(), tf = n/total)
+source_wordsT
+
+source_wordsT %>% ggplot(aes(x=rank, y=n, colour=source)) +
+    geom_line()+
+    scale_x_log10(limits=c(1,10000)) +
+    scale_y_log10()
