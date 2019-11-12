@@ -1,35 +1,25 @@
 library(tidyverse)
 library(tidytext)
-library(textclean)
-library(SnowballC)
-library(wordcloud)
-library(RColorBrewer)
 
 # Read a file with profanity words
 profanity <- readLines("profanity.txt")
 profanity <- tibble(word=profanity)
 
-readFileClean <-  function(filepath,fraction,seed) {
+readFile <-  function(filepath,fraction,seed) {
     # Open as "rb" to avoid ^Z problem
     con = file(filepath, "rb")
     lines <- readLines(con,encoding = "UTF-8")
     close(con)
     set.seed(seed)
     lines <- sample(lines,length(lines)*fraction)
-    # Replace contrations with their multi-word form, e,g I'll -> I will
-    lines <- replace_contraction(lines)
     output <- tibble(line=1:length(lines),text=lines)
     output
 }
 
 # Read 10% of the blogs, news and twitter data
-blogs <- readFileClean("en_US/en_US.blogs.txt",0.1,124)
-news <- readFileClean("en_US/en_US.news.txt",0.1,124)
-twitter <- readFileClean("en_US/en_US.twitter.txt",0.1,124)
-
-write.csv(blogs,"blogs.csv",row.names=FALSE)
-write.csv(news,"news.csv",row.names=FALSE)
-write.csv(twitter,"twitter.csv",row.names=FALSE)
+blogs <- readFile("en_US/en_US.blogs.txt",0.05,124)
+news <- readFile("en_US/en_US.news.txt",0.05,124)
+twitter <- readFile("en_US/en_US.twitter.txt",0.05,124)
 
 # Combine the above into a single corpus
 # Mark the source of each of the data
@@ -42,65 +32,27 @@ words <- corpus %>% unnest_tokens(word,text,token="words") %>%
     # Remove words with non letters
     filter(!grepl("[^a-zA-Z']",word)) %>%
     # Remove profanity words
-    filter(!word %in% profanity) %>%
-    # Stem the words
-    mutate(word = wordStem(word)) %>%
-    # Remove empty words
-    filter(word != "")
+    filter(!word %in% profanity)
 
+corpusClean <- words %>% group_by(source,line) %>%
+    summarize(text = str_c(word, collapse = " ")) %>% ungroup()
 
 # Determine term frequency for each source
-source_words <-  words %>% count(source,word,sort=TRUE)
-total_words <- source_words %>% group_by(source) %>% 
-                summarize(total=sum(n))
-source_words <- left_join(source_words,total_words)
-source_words <- source_words %>% 
-    group_by(source) %>% 
-    mutate(rank = row_number(), tf = n/total)
-source_words
+words <-  words %>% count(word,sort=TRUE)
+total_words <- as.numeric(words %>% summarize(total=sum(n)))
+words
 
-# There are many words that only occur very rarely
-source_words %>% ggplot(aes(tf,fill=source))+
-    geom_histogram(show.legend=FALSE)+
-    xlim(NA,0.001) +
-    scale_y_log10() +
-    facet_wrap(~source)
+n1 <- sum((words %>% filter(n==1))$n)
+n2 <- sum((words %>% filter(n==2))$n)
 
-# Visualize the top twenty words for each source
-pd_words <-  source_words %>% 
-    group_by(source) %>% 
-    top_n(20, tf) %>% 
-    ungroup() %>%
-    arrange(source,desc(tf)) %>%
-    mutate(order=row_number())
-
-pd_words %>% ggplot(aes(x=-order, y=tf, fill = source)) +
-    geom_col(show.legend = FALSE) +
-    facet_wrap(~source, ncol=3,scales="free_y") +
-    labs(x = NULL, y = "term frequency") +
-    scale_x_continuous(
-        breaks = -pd_words$order,
-        labels = pd_words$word,
-        expand = c(0,0)
-    ) +
-    coord_flip()
-
-# Many meaningless words with low frequency
-source_words[source_words$n==1,]
-
-# unique words in sample
-length(unique(source_words$word)) #  127746
-
-# unique words in sample, if n=1 is left out
-length(unique(source_words$word[source_words$n>1])) # 54349
+discount <- n1/(n1+2*n2)
 
 # Tokenize into bigrams
 bigrams <- corpus %>% unnest_tokens(bigram,text,token="ngrams", n=2) %>%
-    filter(!is.na(bigram)) # 9926761 
+    filter(!is.na(bigram))
 
-# First separate bigrams into two words, then filter out stopwords,
-# non letter words and profanities
-# then perform stemming
+# First separate bigrams into two words,
+# then filter out non letter words and profanities
 # and then unite the separate words into bigrams
 bigrams <- bigrams %>% separate(bigram, c("word1","word2"),sep=" ") %>%
     # Remove stopwords
@@ -112,62 +64,27 @@ bigrams <- bigrams %>% separate(bigram, c("word1","word2"),sep=" ") %>%
     # Remove profanity words
     filter(!word1 %in% profanity,
            !word2 %in% profanity) %>%
-    # Stem the words
-    mutate(word1 = wordStem(word1),
-           word2 = wordStem(word2)) %>%
-    # Filter empty words
-    filter(word1 != "",
-           word2 != "") %>%
-    unite(bigram, word1, word2, sep=" ") # 2470965
+    unite(bigram, word1, word2, sep=" ")
 
 # Determine term frequency for each source
-source_bigrams <-  bigrams %>% count(source,bigram,sort=TRUE)
-total_bigrams <- source_bigrams %>% group_by(source) %>% 
-    summarize(total=sum(n))
-source_bigrams <- left_join(source_bigrams,total_bigrams)
-source_bigrams <- source_bigrams %>% 
-    group_by(source) %>% 
-    mutate(rank = row_number(), tf = n/total)
-source_bigrams
+bigrams <-  bigrams %>% count(bigram,sort=TRUE)
+bigrams
 
-# There are many bigrams that only occur very rarely
-source_bigrams %>% ggplot(aes(tf,fill=source))+
-    geom_histogram(show.legend=FALSE)+
-    xlim(NA,0.0005) +
-    scale_y_log10() +
-    facet_wrap(~source)
+bigrams <- bigrams %>% separate(bigram, c("word1","word2"),sep=" ")
 
-# Visualize the top twenty bigramss for each source
-pd_bigrams <- source_bigrams %>% 
-    group_by(source) %>% 
-    top_n(20, tf) %>% 
-    ungroup() %>%
-    arrange(source,desc(tf)) %>%
-    mutate(order=row_number())
+w1Sw2 <- bigrams %>% group_by(word1) %>% summarize(w1Sw2=sum(n))
+w2_w1 <- bigrams %>% group_by(word1) %>% count(word2) %>% summarize(w2_w1=sum(n))
+w2_w1$w2_w1 <- discount * (w2_w1$w2_w1/w1Sw2$w1Sw2)
+w1_w2 <- bigrams %>% group_by(word2) %>% count(word1) %>% summarize(w1_w2=sum(n))
+num_uni_big <- sum(w1_w2$w1_w2)
+w1_w2 <- w1_w2 %>% mutate(w1_w2=(w1_w2-discount)/num_uni_big)
 
-pd_bigrams %>% ggplot(aes(x=-order, y=tf, fill = source)) +
-    geom_col(show.legend = FALSE) +
-    facet_wrap(~source, ncol=3,scales="free_y") +
-    labs(x = NULL, y = "term frequency") +
-    scale_x_continuous(
-        breaks = -pd_bigrams$order,
-        labels = pd_bigrams$bigram,
-        expand = c(0,0)
-    ) +
-    coord_flip()
-
-# Many meaningless words with low frequency
-source_bigrams[source_bigrams$n==1,]
-
-# unique bigrams in sample
-length(unique(source_bigrams$bigram)) #  1335350
-
-# unique words in sample, if n=1 is left out
-length(unique(source_bigrams$bigram[source_bigrams$n>1])) # 205975
+bigrams <- left_join(bigrams,w2_w1)
+words <- left_join(words,w1_w2,by=c("word"="word2"))
 
 # Tokenize into trigrams
 trigrams <- corpus %>% unnest_tokens(trigram,text,token="ngrams", n=3) %>%
-    filter(!is.na(trigram)) #9501283
+    filter(!is.na(trigram))
 
 # First separate trigrams into three words, then filter out stopwords,
 # non letter words and profanities
@@ -186,48 +103,117 @@ trigrams <- trigrams %>% separate(trigram, c("word1","word2","word3"),sep=" ") %
     filter(!word1 %in% profanity,
            !word2 %in% profanity,
            !word3 %in% profanity) %>%
-    # Stem the words
-    mutate(word1 = wordStem(word1),
-           word2 = wordStem(word2),
-           word3 = wordStem(word3)) %>%
-    # Filter empty words
-    filter(word1 != "",
-           word2 != "",
-           word3 != "") %>%
-    unite(trigram, word1, word2, word3, sep=" ") #1077987
+    unite(trigram, word1, word2, word3, sep=" ")
 
 # Determine term frequency for each source
-source_trigrams <-  trigrams %>% count(source,trigram,sort=TRUE)
-total_trigrams <- source_trigrams %>% group_by(source) %>% 
-    summarize(total=sum(n))
-source_trigrams <- left_join(source_trigrams,total_trigrams)
-source_trigrams <- source_trigrams %>% 
-    group_by(source) %>% 
-    mutate(rank = row_number(), tf = n/total)
-source_trigrams
+trigrams <-  trigrams %>% count(trigram,sort=TRUE)
 
-# There are many trigrams that only occur very rarely
-source_trigrams %>% ggplot(aes(tf,fill=source))+
-    geom_histogram(show.legend=FALSE)+
-    xlim(NA,0.0001) +
-    scale_y_log10() +
-    facet_wrap(~source)
+trigrams
 
-# Visualize the top ten trigrams for each source
-pd_trigrams <- source_trigrams %>% 
-    group_by(source) %>% 
-    top_n(20, tf) %>% 
-    ungroup() %>%
-    arrange(source,desc(tf)) %>%
-    mutate(order=row_number())
+trigrams <- trigrams %>% separate(trigram, c("word1","word2","word3"),sep=" ") %>%
+    unite(w1w2, word1, word2, sep=" ")
 
-pd_trigrams %>% ggplot(aes(x=-order, y=tf, fill = source)) +
-    geom_col(show.legend = FALSE) +
-    facet_wrap(~source, ncol=3,scales="free_y") +
-    labs(x = NULL, y = "term frequency") +
-    scale_x_continuous(
-        breaks = -pd_trigrams$order,
-        labels = pd_trigrams$trigram,
-        expand = c(0,0)
-    ) +
-    coord_flip()
+w1w2Sw3 <- trigrams %>% group_by(w1w2) %>% summarize(w1w2Sw3=sum(n))
+w3_w1w2 <- trigrams %>% group_by(w1w2) %>% count(word3) %>% summarize(w3_w1w2=sum(n))
+w3_w1w2$w3_w1w2 <- discount * (w3_w1w2$w3_w1w2/w1w2Sw3$w1w2Sw3)
+
+trigrams <- left_join(trigrams,w1w2Sw3)
+trigrams <- left_join(trigrams,w3_w1w2)
+
+trigrams <- trigrams %>% separate(w1w2, c("word1","word2"),sep=" ") %>%
+    unite(w2w3, word2, word3, sep=" ")
+
+w1_w2w3 <- trigrams %>% group_by(w2w3) %>% count(word1) %>% summarize(w1_w2w3=sum(n))
+w1_w2Sw3 <- w1_w2w3 %>% separate(w2w3, c("word2", "word3"), sep=" ") %>%
+    group_by(word2) %>% summarize(w1_w2Sw3=sum(w1_w2w3))
+
+bigrams <- left_join(bigrams,w1_w2Sw3,by=c("word1"="word2"))
+bigrams <- bigrams %>% unite(w1w2, word1, word2, sep=" ")
+bigrams <- left_join(bigrams,w1_w2w3,by=c("w1w2"="w2w3"))
+
+
+
+words[is.na(words$w1_w2),"w1_w2"]=0
+words <-  words %>% mutate( prob=w1_w2+(discount/total_words) )
+words <- words %>% select(word,prob)
+bigrams <- bigrams %>% separate(w1w2, c("word1","word2"),sep=" ")
+bigrams <- left_join(bigrams,words,by=c("word2"="word"))
+bigrams[is.na(bigrams$w1_w2w3),"w1_w2w3"]=0
+bigrams[is.na(bigrams$w1_w2Sw3),"w1_w2Sw3"]=1
+bigrams[bigrams$w1_w2w3==0,"w1_w2w3"]=discount
+bigrams <- bigrams %>% mutate( prob = (w1_w2w3-discount)/w1_w2Sw3+w2_w1*prob )
+bigrams <- bigrams %>% select(word1, word2, prob)
+
+bigrams <- bigrams %>% unite(w2w3,word1,word2,sep=" ")
+trigrams <-  left_join(trigrams,bigrams)
+trigrams <- trigrams %>% mutate( prob=(n-discount)/w1w2Sw3 + w3_w1w2*prob )
+trigrams <-  trigrams %>% separate(w2w3, c("word2", "word3"), sep=" ") %>%
+    unite(w1w2, word1, word2, sep=" ")
+trigrams <- trigrams %>% select(w1w2, word3, prob)
+
+bigrams <- bigrams %>% separate(w2w3, c("word1","word2"),sep=" ")
+
+trigrams <- trigrams %>% arrange(w1w2)
+
+words <- words %>% arrange(desc(prob))
+
+
+Twords <- function(w1, w2, n=5) {
+    
+    match <- paste(w1,w2,sep=" ")
+    
+    Tlist <- trigrams %>% filter(w1w2 == match) %>% arrange(desc(prob)) %>%
+        select(word3)
+    
+    if ( nrow(Tlist) == 0 )
+        return( Bwords(w2, n) )
+    
+    if ( nrow(Tlist) > n)
+        return( pull(Tlist[1:n,]) )
+    
+    Blist <- Bwords(w2, n)[1:(n - nrow(Tlist))]
+    return( c(pull(Tlist), Blist) )
+}
+
+# function to return highly probable previous word given a word
+Bwords <- function(w1, n = 5) {
+    
+    Blist <- bigrams %>% filter(word1==w1) %>% arrange(desc(prob)) %>%
+        select(word2)
+    
+    if ( nrow(Blist)==0 )
+        return( Uwords(n) )
+    if ( nrow(Blist) > n )
+        return( pull(Blist[1:n,]) )
+
+    Ulist <- Uwords(n)[1:(n - nrow(Blist))]
+    return( c(pull(Blist),Ulist) )
+}
+
+# function to return random words from unigrams
+Uwords <- function(n = 5) {  
+    return( sample( pull(words[1:50,"word"]), size = n ) )
+}
+
+PredictWord <- function(text){
+    
+    input <- tibble(text=text)
+    words <- input %>% unnest_tokens(word,text,token="words") %>%
+        # Remove "snowball" stopwords
+        filter(!word %in% stop_words$word[stop_words$lexicon=="snowball"])  %>%
+        # Remove words with non letters
+        filter(!grepl("[^a-zA-Z']",word)) %>%
+        # Remove profanity words
+        filter(!word %in% profanity)
+    nw <- nrow(words)
+    if (nw==0) {
+        return( Uwords())
+    } else if (nw == 1){
+        word <- words[1,"word"]
+        return( Bwords() )
+    } else {
+        w1 <- words[nw-1,"word"]
+        w2 <- words[nw,"word"]
+        return( Twords(w1,w2))
+    }
+}
