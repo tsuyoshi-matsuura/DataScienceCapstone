@@ -48,23 +48,8 @@ n2 <- sum((words %>% filter(n==2))$n)
 discount <- n1/(n1+2*n2)
 
 # Tokenize into bigrams
-bigrams <- corpus %>% unnest_tokens(bigram,text,token="ngrams", n=2) %>%
+bigrams <- corpusClean %>% unnest_tokens(bigram,text,token="ngrams", n=2) %>%
     filter(!is.na(bigram))
-
-# First separate bigrams into two words,
-# then filter out non letter words and profanities
-# and then unite the separate words into bigrams
-bigrams <- bigrams %>% separate(bigram, c("word1","word2"),sep=" ") %>%
-    # Remove stopwords
-    filter(!word1 %in% stop_words$word[stop_words$lexicon=="snowball"],
-           !word2 %in% stop_words$word[stop_words$lexicon=="snowball"]) %>%
-    # Remove words with non letters
-    filter(!grepl("[^a-zA-Z']",word1),
-           !grepl("[^a-zA-Z']",word2)) %>%
-    # Remove profanity words
-    filter(!word1 %in% profanity,
-           !word2 %in% profanity) %>%
-    unite(bigram, word1, word2, sep=" ")
 
 # Determine term frequency for each source
 bigrams <-  bigrams %>% count(bigram,sort=TRUE)
@@ -83,27 +68,8 @@ bigrams <- left_join(bigrams,w2_w1)
 words <- left_join(words,w1_w2,by=c("word"="word2"))
 
 # Tokenize into trigrams
-trigrams <- corpus %>% unnest_tokens(trigram,text,token="ngrams", n=3) %>%
+trigrams <- corpusClean %>% unnest_tokens(trigram,text,token="ngrams", n=3) %>%
     filter(!is.na(trigram))
-
-# First separate trigrams into three words, then filter out stopwords,
-# non letter words and profanities
-# then perform stemming
-# and then unite the separate words into trigrams
-trigrams <- trigrams %>% separate(trigram, c("word1","word2","word3"),sep=" ") %>%
-    # Remove stopwords
-    filter(!word1 %in% stop_words$word[stop_words$lexicon=="snowball"],
-           !word2 %in% stop_words$word[stop_words$lexicon=="snowball"],
-           !word3 %in% stop_words$word[stop_words$lexicon=="snowball"]) %>%
-    # Remove words with non letters
-    filter(!grepl("[^a-zA-Z']",word1),
-           !grepl("[^a-zA-Z']",word2),
-           !grepl("[^a-zA-Z']",word3)) %>%
-    # Remove profanity words
-    filter(!word1 %in% profanity,
-           !word2 %in% profanity,
-           !word3 %in% profanity) %>%
-    unite(trigram, word1, word2, word3, sep=" ")
 
 # Determine term frequency for each source
 trigrams <-  trigrams %>% count(trigram,sort=TRUE)
