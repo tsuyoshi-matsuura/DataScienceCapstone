@@ -195,7 +195,7 @@ Uwords <- function(n = 5) {
     return( sample( pull(words[1:50,"word"]), size = n ) )
 }
 
-PredictWord <- function(text){
+PredictWord <- function(text,n=5){
     
     input <- tibble(text=text)
     words <- input %>% unnest_tokens(word,text,token="words") %>%
@@ -207,13 +207,13 @@ PredictWord <- function(text){
         filter(!word %in% profanity)
     nw <- nrow(words)
     if (nw==0) {
-        return( Uwords())
+        return( Uwords(n))
     } else if (nw == 1){
         word <- words[1,"word"]
-        return( Bwords() )
+        return( Bwords(word,n) )
     } else {
         w1 <- words[nw-1,"word"]
         w2 <- words[nw,"word"]
-        return( Twords(w1,w2))
+        return( Twords(w1,w2,n))
     }
 }
