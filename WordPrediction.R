@@ -168,7 +168,7 @@ Twords <- function(w1, w2, n=5) {
     if ( nrow(Tlist) == 0 )
         return( Bwords(w2, n) )
     
-    if ( nrow(Tlist) > n)
+    if ( nrow(Tlist) >= n)
         return( pull(Tlist[1:n,]) )
     
     Blist <- Bwords(w2, n)[1:(n - nrow(Tlist))]
@@ -178,12 +178,12 @@ Twords <- function(w1, w2, n=5) {
 # function to return highly probable previous word given a word
 Bwords <- function(w1, n = 5) {
     
-    Blist <- bigrams %>% filter(word1==w1) %>% arrange(desc(prob)) %>%
+    Blist <- bigrams %>% filter(word1==as.character(w1)) %>% arrange(desc(prob)) %>%
         select(word2)
     
     if ( nrow(Blist)==0 )
         return( Uwords(n) )
-    if ( nrow(Blist) > n )
+    if ( nrow(Blist) >= n )
         return( pull(Blist[1:n,]) )
 
     Ulist <- Uwords(n)[1:(n - nrow(Blist))]

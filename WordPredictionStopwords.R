@@ -17,9 +17,9 @@ readFile <-  function(filepath,fraction,seed) {
 }
 
 # Read 10% of the blogs, news and twitter data
-blogs <- readFile("en_US/en_US.blogs.txt",0.05,124)
-news <- readFile("en_US/en_US.news.txt",0.05,124)
-twitter <- readFile("en_US/en_US.twitter.txt",0.05,124)
+blogs <- readFile("en_US/en_US.blogs.txt",0.6,124)
+news <- readFile("en_US/en_US.news.txt",0.6,124)
+twitter <- readFile("en_US/en_US.twitter.txt",0.6,124)
 
 # Combine the above into a single corpus
 # Mark the source of each of the data
@@ -127,6 +127,7 @@ words <- words %>% arrange(desc(prob))
 Twords <- function(w1, w2, n=5) {
     
     match <- paste(w1,w2,sep=" ")
+    print(match)
     
     Tlist <- trigrams %>% filter(w1w2 == match) %>% arrange(desc(prob)) %>%
         select(word3)
@@ -134,7 +135,7 @@ Twords <- function(w1, w2, n=5) {
     if ( nrow(Tlist) == 0 )
         return( Bwords(w2, n) )
     
-    if ( nrow(Tlist) > n)
+    if ( nrow(Tlist) >= n)
         return( pull(Tlist[1:n,]) )
     
     Blist <- Bwords(w2, n)[1:(n - nrow(Tlist))]
@@ -143,13 +144,13 @@ Twords <- function(w1, w2, n=5) {
 
 # function to return highly probable previous word given a word
 Bwords <- function(w1, n = 5) {
-    
-    Blist <- bigrams %>% filter(word1==w1) %>% arrange(desc(prob)) %>%
+    print("In Bwords")
+    Blist <- bigrams %>% filter(word1==as.character(w1)) %>% arrange(desc(prob)) %>%
         select(word2)
-    
+
     if ( nrow(Blist)==0 )
         return( Uwords(n) )
-    if ( nrow(Blist) > n )
+    if ( nrow(Blist) >= n )
         return( pull(Blist[1:n,]) )
 
     Ulist <- Uwords(n)[1:(n - nrow(Blist))]
@@ -157,7 +158,8 @@ Bwords <- function(w1, n = 5) {
 }
 
 # function to return random words from unigrams
-Uwords <- function(n = 5) {  
+Uwords <- function(n = 5) {
+    print("In Uwords")
     return( sample( pull(words[1:50,"word"]), size = n ) )
 }
 
