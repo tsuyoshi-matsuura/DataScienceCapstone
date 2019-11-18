@@ -5,8 +5,8 @@ account: tsuyoshi-matsuura
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 1486752
-bundleId: 2597812
+bundleId: 2597882
 url: https://tsuyoshi-matsuura.shinyapps.io/ShinyApp/
-when: 1574089640.31626
+when: 1574091363.85432
 asMultiple: FALSE
 asStatic: FALSE

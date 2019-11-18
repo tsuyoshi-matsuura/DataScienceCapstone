@@ -106,8 +106,8 @@ CheckWord <- function(text){
     w2 <- words[nw-2,"word"]
     w3 <- words[nw-1,"word"]
     act <- words[nw,"word"]
-    prd <- Qwords(w1,w2,w3,n=1)
-    return(c(act==prd))
+    prd <- Qwords(w1,w2,w3,n=5)
+    return(c(act %in% prd))
 }
 
 corpusTest <- readRDS("RDS/corpusTest.rds")
