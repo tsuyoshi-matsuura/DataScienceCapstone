@@ -133,17 +133,17 @@ quadgrams <-  quadgrams %>% filter(!w4 %in% c("e0s"))
 quadgrams
 
 
-quadgrams <- quadgrams %>% filter(n4 >= 3)
-trigrams <-  trigrams %>% filter(n3>=3)
-bigrams <-  bigrams %>% filter(n2>=3)
+quadgrams <- quadgrams %>% filter(n4 >= 4)
+trigrams <-  trigrams %>% filter(n3>=4)
+bigrams <-  bigrams %>% filter(n2>=4)
 
 quadgrams <- quadgrams %>% arrange(w123)
 trigrams <- trigrams %>% arrange(w12)
 bigrams <- bigrams %>% arrange(w1)
 
-saveRDS(quadgrams,file="quadgrams_min3.rds")
-saveRDS(trigrams,file="trigrams_min3.rds")
-saveRDS(bigrams,file="bigrams_min3.rds")
+saveRDS(quadgrams,file="quadgrams_min4.rds")
+saveRDS(trigrams,file="trigrams_min4.rds")
+saveRDS(bigrams,file="bigrams_min4.rds")
 
 sample <- sample(1:nrow(corpusClean),1000)
 
