@@ -16,8 +16,8 @@ some text.
 Features of the 'Next Word' prediction app
 ========================================================
 
-* The app generates 'Next Word's as the user types in text
-* Upto five 'Next Word's are generated for each text
+* The app generates a 'Next Word' as the user types in text
+* The 'Next Word' is updated when the user continues entering text
 * The app has a profanity filter, i.e. it will ignore profanities input by the user
   and will not generate profanities itself
 
@@ -61,8 +61,8 @@ https://tsuyoshi-matsuura.shinyapps.io/NextWord/
 
 ***Instructions:*** <br>
  * After the app loads, enter text into the input box.
- * The app will predict upto five words that can serve as 'Next Word's to the input text
- * Continuing adding text will automatically update the predicted 'Next Word's 
+ * The app will predict a 'Next Word' to the input text
+ * Continuing adding text will automatically update the predicted 'Next Word'
 
 
 ## Enjoy using the app & Please provide feedback!!!!
