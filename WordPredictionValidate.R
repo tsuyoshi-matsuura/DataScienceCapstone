@@ -152,4 +152,7 @@ test <- corpusClean[sample,] %>% select(text) %>% mutate(out=mapply(CheckWord,te
 toc()
 sum(test$out)/nrow(test)
 
-
+tic("CheckWord")
+test <- corpusClean %>% select(text) %>% mutate(out=mapply(CheckWord,text))
+toc()
+sum(test$out)/nrow(test)
