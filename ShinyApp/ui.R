@@ -15,19 +15,19 @@ shinyUI(navbarPage("Next Word Prediction",
 
                             tags$hr(),
 
-                            h4("Possible next words are: "),
+                            h4("Possible next word: "),
                             textOutput("guess")
                    ),
                    # Tab 2
                    tabPanel(p(icon("book"), "Documentation"),
                             h3("Purpose of the app"),
-                            h5("The purpose of the app is to predict up to five 'Next Word's
+                            h5("The purpose of the app is to predict the 'Next Word'
                                based on the text provided by the user."),
                             tags$hr(),
                             h3("Usage"),
                             h5("Provide some text in the designated input box. The app will
-                               generate up to five 'Next Word's that could follow the text. If the user
-                               continues typing text, the predicted words will be updated."),
+                               generate a 'Next Word' that could follow the text. If the user
+                               continues typing text, the predicted word will be updated."),
                             tags$hr(),
                             h3("Technical background"),
                             h5("The app is based on a quad-gram language model with Kneser-Ney smoothing. 

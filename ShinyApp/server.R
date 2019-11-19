@@ -98,7 +98,7 @@ PredictWord <- function(text,n=5){
 shinyServer( function(input, output) {
 
     ans <- reactive({
-        PredictWord(input$user_input,5)
+        PredictWord(input$user_input,1)
     })
     
     
